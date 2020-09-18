@@ -29,6 +29,7 @@ namespace StickersTemplate.Configuration.Controllers
     {
         private readonly IStickerStore stickerStore;
         private readonly IBlobStore blobStore;
+        private readonly Uri storageCdnUri;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="StickersController"/> class.
@@ -36,6 +37,16 @@ namespace StickersTemplate.Configuration.Controllers
         public StickersController()
         {
             var connectionString = CloudConfigurationManager.GetSetting("StorageConnectionString");
+            var storageCdn = CloudConfigurationManager.GetSetting("StorageCDNEndpoint");
+            if (storageCdn == null)
+            {
+                this.storageCdnUri = null;
+            }
+            else
+            {
+                this.storageCdnUri = new Uri(storageCdn);
+            }
+
             this.stickerStore = new StickerStore(connectionString, CloudConfigurationManager.GetSetting("StickersTableName"));
             this.blobStore = new BlobStore(connectionString, CloudConfigurationManager.GetSetting("StickersBlobContainerName"));
         }
@@ -83,6 +94,10 @@ namespace StickersTemplate.Configuration.Controllers
                     memoryStream.Seek(0, SeekOrigin.Begin);
 
                     imageUri = await this.blobStore.UploadBlobAsync(id, memoryStream);
+                    if (this.storageCdnUri != null)
+                    {
+                        imageUri = new Uri(this.storageCdnUri, imageUri.PathAndQuery);
+                    }
                 }
 
                 await this.stickerStore.CreateStickerAsync(new Sticker
